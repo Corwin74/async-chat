@@ -19,7 +19,7 @@ async def capture_chat(options):
         history_filename = HISTORY_FILENAME
     reader, _ = await asyncio.open_connection(
         options.host,
-        options.port,
+        options.port_out,
     )
     async with aiofiles.open(history_filename, 'a') as f:
         while not reader.at_eof():
@@ -51,16 +51,13 @@ async def tcp_reconnect(options):
 
 def main():
     parser = configargparse.ArgParser(
-        default_config_files=['listen-minechat.ini']
+        default_config_files=['minechat.ini']
     )
     parser.add('--host', required=True, help='host to connection')
-    parser.add('--port', required=True, help='port to connection')
+    parser.add('--port_out', required=True, help='port to connection')
     parser.add('--history', required=False, help='history filename')
 
     options = parser.parse_args()
-
-    if not options.history:
-        print('dd')
     asyncio.run(tcp_reconnect(options))
 
 
