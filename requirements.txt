@@ -1,2 +1,3 @@
+aiofiles~=23.1.0
 aiohttp
 ConfigArgParse

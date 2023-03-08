@@ -55,6 +55,7 @@ def main():
     )
     parser.add('--host', required=True, help='host to connection')
     parser.add('--port_out', required=True, help='port to connection')
+    parser.add('--port_in', required=True, help='port to connection')
     parser.add('--history', required=False, help='history filename')
 
     options = parser.parse_args()
