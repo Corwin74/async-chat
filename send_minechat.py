@@ -14,27 +14,37 @@ HISTORY_FILENAME = 'history.txt'
 logger = logging.getLogger(__file__)
 
 
-async def get_chat_token(reader, writer):
+async def authorise(reader, writer):
     if await os.path.exists('.token'):
         async with aiofiles.open('.token', 'r') as f:
             chat_token = await f.readline()
-        logger.debug('Get token "%s" from file', chat_token)
-    else:
-        logger.debug('Send empty line to obtain new token')
-        writer.write('\n'.encode())
+        logger.debug('Get token "%s" from file', chat_token.rstrip())
+        writer.write(f'{chat_token}\n'.encode())
         await writer.drain()
-        await handle_chat_reply(reader)
-        nickname = input('Введите nickname:')
-        logger.debug('Send %s as nickname', nickname)
-        writer.write(f'{nickname}\n'.encode())
-        await writer.drain()
-        reply = await handle_chat_reply(reader)
-        chat_token = json.loads(reply)['account_hash']
-        logger.debug('Get new token: %s', chat_token.rstrip())
-        async with aiofiles.open('.token', 'w') as f:
-            await f.write(chat_token)
-    logger.debug('Return token: %s', chat_token.rstrip())
-    return chat_token
+        authorization_reply = await handle_chat_reply(reader)
+        logger.debug('Authorization reply: %s', authorization_reply)
+        parsed_reply = json.loads(authorization_reply)
+        if parsed_reply is None:
+            print(f'Неизвестный токен: "{chat_token.rstrip()}". '
+                  'Проверьте его или зарегистрируйте заново.')
+            logger.error('Token "%s" is not valid', {chat_token.rstrip()})
+            return None
+        return parsed_reply['nickname']
+    logger.debug('Send empty line to obtain new token')
+    writer.write('\n'.encode())
+    await writer.drain()
+    await handle_chat_reply(reader)
+    nickname = input('Введите nickname для регистрации:')
+    writer.write(f'{nickname}\n'.encode())
+    await writer.drain()
+    logger.debug('Send %s as nickname', nickname)
+    reply = await handle_chat_reply(reader)
+    parsed_reply = json.loads(reply)
+    chat_token = parsed_reply['account_hash']
+    logger.debug('Get new token: %s', chat_token)
+    async with aiofiles.open('.token', 'w') as f:
+        await f.write(chat_token)
+    return parsed_reply['nickname']
 
 
 async def handle_chat_reply(reader, echo=None):
@@ -54,25 +64,25 @@ async def reconnect(options):
         options.port_in,
     )
     await handle_chat_reply(reader)
-    chat_token = await get_chat_token(reader, writer)
-    writer.write(chat_token.encode())
-    await writer.drain()
-    authorization_reply = await handle_chat_reply(reader)
-    logger.debug('Authorization reply: %s', authorization_reply)
-    if json.loads(authorization_reply) is None:
-        print(f'Неизвестный токен: "{chat_token.rstrip()}". '
-              'Проверьте его или зарегистрируйте заново.')
-        logger.error('Token "%s" is not valid', {chat_token.rstrip()})
+    nickname = await authorise(reader, writer)
+    if not nickname:
         return
+    logger.debug('Log in chat as %s', nickname)
+    print(f'Успешный вход в чат под именем: {nickname}')
     await handle_chat_reply(reader)
     while not reader.at_eof():
-        message = input('Ввведите сообщение: ') + '\n'
-        writer.write(message.encode())
+        message = input('Ввведите сообщение или пустую строку для выхода: ')
+        if not message:
+            break
+        writer.write(f'{message}\n'.encode())
         await writer.drain()
-        logger.debug('Send: %s', message.rstrip().decode())
+        logger.debug('Send: %s', message)
         writer.write('\n'.encode())
         await writer.drain()
+        print('Cообщение отправлено')
         await handle_chat_reply(reader)
+    writer.close()
+    await writer.wait_closed()
 
 
 def main():
