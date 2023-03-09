@@ -1,5 +1,4 @@
 import json
-import socket
 import asyncio
 import logging
 import aiofiles
@@ -22,6 +21,7 @@ async def register(reader, writer):
     await handle_chat_reply(reader)
     nickname = input(f'[{get_datetime_now()}] '
                      'Введите nickname для регистрации:')
+    nickname = sanitize_input(nickname)
     writer.write(f'{nickname}\n'.encode())
     await writer.drain()
     logger.debug('Send %s as nickname', nickname)
@@ -79,38 +79,20 @@ async def submit_message(options):
     logger.debug('Log in chat as %s', nickname)
     print(f'[{get_datetime_now()}] Успешный вход в чат под именем: {nickname}')
     await handle_chat_reply(reader)
-    while not reader.at_eof():
-        message = input(f'[{get_datetime_now()}] Ввведите сообщение или '
-                        'пустую строку для выхода: ')
-        if not message:
-            break
-        writer.write(f'{message}\n'.encode())
-        await writer.drain()
-        logger.debug('Send: %s', message)
-        writer.write('\n'.encode())
-        await writer.drain()
-        print(f'[{get_datetime_now()}] Cообщение отправлено')
-        await handle_chat_reply(reader)
+    message = sanitize_input(options.message)
+    writer.write(f'{message}\n'.encode())
+    await writer.drain()
+    logger.debug('Send: %s', message)
+    writer.write('\n'.encode())
+    await writer.drain()
+    print(f'[{get_datetime_now()}] Cообщение отправлено')
+    await handle_chat_reply(reader)
     writer.close()
     await writer.wait_closed()
 
 
-async def reconnect(options):
-    while True:
-        print(f'[{get_datetime_now()}] Connecting to chat...')
-        try:
-            await submit_message(options)
-            break
-        except ConnectionRefusedError:
-            print(f'[{get_datetime_now()}] Connection to chat failed!')
-        except asyncio.TimeoutError:
-            print(f'[{get_datetime_now()}] Connection to chat timed out!')
-        except socket.error as exc:
-            print(
-                  f'[{get_datetime_now()}] '
-                  f'Caught exception socket.error : {exc}'
-            )
-    print(f'[{get_datetime_now()}] Connection to chat is closed.')
+def sanitize_input(message):
+    return message.replace('\n', ' ')
 
 
 def main():
@@ -124,13 +106,14 @@ def main():
     parser = configargparse.ArgParser(
         default_config_files=['minechat.ini']
     )
+    parser.add('--message', required=True, help='Message to send')
     parser.add('--host', required=True, help='host to connection')
     parser.add('--port_in', required=True, help='port to connection')
     parser.add('--port_out', required=False, help='port to connection')
 
     options = parser.parse_args()
     logger.debug('Host: %s, port: %s', options.host, options.port_in)
-    asyncio.run(reconnect(options))
+    asyncio.run(submit_message(options))
 
 
 if __name__ == '__main__':
