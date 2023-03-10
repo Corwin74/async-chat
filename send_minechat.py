@@ -83,9 +83,7 @@ async def submit_message(options):
         logger.debug('Get token "%s" from file', chat_token.rstrip())
         nickname = await authorise(reader, writer, chat_token)
     else:
-        logger.error('Access token not found and new username not specified!')
-        print('Токен доступа не найден и имя нового пользователя не указано!')
-        return
+        chat_token, nickname = await register(reader, writer)
     if not nickname:
         return
     logger.debug('Log in chat as %s', nickname)
