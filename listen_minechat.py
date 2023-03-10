@@ -47,7 +47,7 @@ async def reconnect(options):
             )
         else:
             print(f'[{get_datetime_now()}] Connection to chat is closed.')
-        await asyncio.wait(RECONNECT_DELAY)
+        await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main():
