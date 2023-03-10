@@ -15,7 +15,9 @@ def get_datetime_now():
 
 
 async def capture_chat(options):
-    if not options.history:
+    if options.history:
+        history_filename = options.history
+    else:
         history_filename = HISTORY_FILENAME
     reader, _ = await asyncio.open_connection(
         options.host,
@@ -28,7 +30,7 @@ async def capture_chat(options):
             formatted_date = get_datetime_now()
             decoded_line = line.decode()
             print(f'[{formatted_date}] {decoded_line}', end='')
-            await f.writelines(f'[{formatted_date}] {decoded_line}')
+            await f.write(f'[{formatted_date}] {decoded_line}')
 
 
 async def reconnect(options):
