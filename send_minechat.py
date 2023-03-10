@@ -1,10 +1,10 @@
+import datetime
 import json
 import asyncio
 import logging
 import aiofiles
 from aiofiles import os
 import configargparse
-from listen_minechat import get_datetime_now
 
 
 READING_TIMEOUT = 600
@@ -14,6 +14,10 @@ HISTORY_FILENAME = 'history.txt'
 logger = logging.getLogger(__file__)
 
 
+def get_datetime_now():
+    return datetime.datetime.now().strftime("%d.%m.%y %H:%M:%S")
+
+
 async def register(reader, writer, nickname=None):
     logger.debug('Send empty line to obtain new token')
     writer.write('\n'.encode())
@@ -21,7 +25,7 @@ async def register(reader, writer, nickname=None):
     await handle_chat_reply(reader)
     if not nickname:
         nickname = input(f'[{get_datetime_now()}] '
-                        'Введите nickname для регистрации:')
+                         'Введите nickname для регистрации:')
     nickname = sanitize_input(nickname)
     writer.write(f'{nickname}\n'.encode())
     await writer.drain()
@@ -44,7 +48,7 @@ async def authorise(reader, writer, chat_token):
     parsed_reply = json.loads(authorization_reply)
     if parsed_reply is None:
         print(f'[{get_datetime_now()}] Неизвестный токен: '
-              '"{chat_token.rstrip()}". '
+              f'"{chat_token.rstrip()}". '
               'Проверьте его или зарегистрируйте заново.')
         logger.error('Token "%s" is not valid', {chat_token.rstrip()})
         return None
@@ -79,8 +83,10 @@ async def submit_message(options):
         logger.debug('Get token "%s" from file', chat_token.rstrip())
         nickname = await authorise(reader, writer, chat_token)
     else:
-        logger.error('Access token not found and new username not specefied!')
+        logger.error('Access token not found and new username not specified!')
         print('Токен доступа не найден и имя нового пользователя не указано!')
+        return
+    if not nickname:
         return
     logger.debug('Log in chat as %s', nickname)
     print(f'[{get_datetime_now()}] Успешный вход в чат под именем: {nickname}')
@@ -94,6 +100,7 @@ async def submit_message(options):
     await handle_chat_reply(reader)
     writer.close()
     await writer.wait_closed()
+    return
 
 
 def sanitize_input(message):
