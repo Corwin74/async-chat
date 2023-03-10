@@ -14,13 +14,14 @@ HISTORY_FILENAME = 'history.txt'
 logger = logging.getLogger(__file__)
 
 
-async def register(reader, writer):
+async def register(reader, writer, nickname=None):
     logger.debug('Send empty line to obtain new token')
     writer.write('\n'.encode())
     await writer.drain()
     await handle_chat_reply(reader)
-    nickname = input(f'[{get_datetime_now()}] '
-                     'Введите nickname для регистрации:')
+    if not nickname:
+        nickname = input(f'[{get_datetime_now()}] '
+                        'Введите nickname для регистрации:')
     nickname = sanitize_input(nickname)
     writer.write(f'{nickname}\n'.encode())
     await writer.drain()
@@ -28,11 +29,11 @@ async def register(reader, writer):
     reply = await handle_chat_reply(reader)
     parsed_reply = json.loads(reply)
     chat_token = parsed_reply['account_hash']
-    nickname = parsed_reply['nickname']
+    registered_nickname = parsed_reply['nickname']
     logger.debug('Get new token: %s', chat_token)
     async with aiofiles.open('.token', 'w') as f:
         await f.write(chat_token)
-    return chat_token, nickname
+    return chat_token, registered_nickname
 
 
 async def authorise(reader, writer, chat_token):
@@ -47,6 +48,7 @@ async def authorise(reader, writer, chat_token):
               'Проверьте его или зарегистрируйте заново.')
         logger.error('Token "%s" is not valid', {chat_token.rstrip()})
         return None
+    await handle_chat_reply(reader)
     return parsed_reply['nickname']
 
 
@@ -64,27 +66,30 @@ async def handle_chat_reply(reader, echo=None):
 async def submit_message(options):
     reader, writer = await asyncio.open_connection(
         options.host,
-        options.port_in,
+        options.port,
     )
     await handle_chat_reply(reader)
-    if await os.path.exists('.token'):
+    if options.user:
+        chat_token, nickname = await register(reader, writer, options.user)
+    elif options.token:
+        nickname = await authorise(reader, writer, options.token)
+    elif await os.path.exists('.token'):
         async with aiofiles.open('.token', 'r') as f:
             chat_token = await f.readline()
         logger.debug('Get token "%s" from file', chat_token.rstrip())
         nickname = await authorise(reader, writer, chat_token)
     else:
-        chat_token, nickname = await register(reader, writer)
-    if not nickname:
+        logger.error('Access token not found and new username not specefied!')
+        print('Токен доступа не найден и имя нового пользователя не указано!')
         return
     logger.debug('Log in chat as %s', nickname)
     print(f'[{get_datetime_now()}] Успешный вход в чат под именем: {nickname}')
-    await handle_chat_reply(reader)
     message = sanitize_input(options.message)
     writer.write(f'{message}\n'.encode())
     await writer.drain()
-    logger.debug('Send: %s', message)
     writer.write('\n'.encode())
     await writer.drain()
+    logger.debug('Send: %s', message)
     print(f'[{get_datetime_now()}] Cообщение отправлено')
     await handle_chat_reply(reader)
     writer.close()
@@ -104,15 +109,23 @@ def main():
         datefmt='%Y-%m-%d %H:%M:%S',
     )
     parser = configargparse.ArgParser(
-        default_config_files=['minechat.ini']
+        default_config_files=['send_minechat.ini'],
+        add_help=False
     )
-    parser.add('--message', required=True, help='Message to send')
-    parser.add('--host', required=True, help='host to connection')
-    parser.add('--port_in', required=True, help='port to connection')
-    parser.add('--port_out', required=False, help='port to connection')
 
+    parser.add('message', help='Message to send')
+    parser.add('-h', '--host', required=True, help='host to connection')
+    parser.add('-p', '--port', required=True, help='port to connection')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('-t', '--token', required=False, help='Access token')
+    group.add_argument(
+        '-u',
+        '--user',
+        required=False,
+        help='New user to registration',
+    )
     options = parser.parse_args()
-    logger.debug('Host: %s, port: %s', options.host, options.port_in)
+    logger.debug('Host: %s, port: %s', options.host, options.port)
     asyncio.run(submit_message(options))
 
 
