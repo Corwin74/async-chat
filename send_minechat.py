@@ -14,7 +14,7 @@ READING_TIMEOUT = 600
 RECONNECT_DELAY = 30
 HISTORY_FILENAME = 'history.txt'
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger('minechat')
 
 
 def get_datetime_now():

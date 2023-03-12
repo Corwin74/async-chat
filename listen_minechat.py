@@ -1,6 +1,7 @@
 import datetime
 import socket
 import asyncio
+import logging
 import aiofiles
 import dotenv
 import configargparse
@@ -10,6 +11,8 @@ from socket_manager import open_socket
 READING_TIMEOUT = 600
 RECONNECT_DELAY = 30
 HISTORY_FILENAME = 'history.txt'
+
+logger = logging.getLogger('minechat')
 
 
 def get_datetime_now():
@@ -23,6 +26,7 @@ async def capture_chat(options):
         history_filename = HISTORY_FILENAME
     async with open_socket(options.host, options.port_out) as s:
         reader, _ = s
+        logger.debug('Start listening chat')
         async with aiofiles.open(history_filename, 'a') as f:
             while not reader.at_eof():
                 future = reader.readline()
@@ -49,10 +53,18 @@ async def reconnect(options):
             )
         else:
             print(f'[{get_datetime_now()}] Connection to chat is closed.')
+        logger.debug('Pause for reconnect')
         await asyncio.sleep(RECONNECT_DELAY)
 
 
 def main():
+    logging.basicConfig(
+        filename='listen_minechat.log',
+        filemode='w',
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.DEBUG,
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
     dotenv.load_dotenv()
     parser = configargparse.ArgParser()
     parser.add(
@@ -75,6 +87,7 @@ def main():
     )
 
     options = parser.parse_args()
+    logger.debug('Host: %s, port: %s', options.host, options.port_out)
     asyncio.run(reconnect(options))
 
 
