@@ -2,6 +2,7 @@ import datetime
 import socket
 import asyncio
 import aiofiles
+import dotenv
 import configargparse
 
 
@@ -21,7 +22,7 @@ async def capture_chat(options):
         history_filename = HISTORY_FILENAME
     reader, _ = await asyncio.open_connection(
         options.host,
-        options.port,
+        options.port_out,
     )
     async with aiofiles.open(history_filename, 'a') as f:
         while not reader.at_eof():
@@ -53,13 +54,26 @@ async def reconnect(options):
 
 
 def main():
-    parser = configargparse.ArgParser(
-        default_config_files=['listen_minechat.ini'],
-        add_help=False,
+    dotenv.load_dotenv()
+    parser = configargparse.ArgParser()
+    parser.add(
+        '-host',
+        required=True,
+        help='host to connection',
+        env_var='HOST',
     )
-    parser.add('-h', '--host', required=True, help='host to connection')
-    parser.add('-p', '--port', required=True, help='port to connection')
-    parser.add('--history', required=False, help='history filename')
+    parser.add(
+        '-port_out',
+        required=True,
+        help='port to connection',
+        env_var='PORT_OUT',
+    )
+    parser.add(
+        '-history',
+        required=False,
+        help='history filename',
+        env_var='MINECHAT_HISTORY',
+    )
 
     options = parser.parse_args()
     asyncio.run(reconnect(options))

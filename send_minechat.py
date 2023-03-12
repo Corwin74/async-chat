@@ -2,8 +2,10 @@ import datetime
 import json
 import asyncio
 import logging
+import os
+import dotenv
 import aiofiles
-from aiofiles import os
+from aiofiles import os as aio_os
 import configargparse
 
 
@@ -35,8 +37,12 @@ async def register(reader, writer, nickname=None):
     chat_token = parsed_reply['account_hash']
     registered_nickname = parsed_reply['nickname']
     logger.debug('Get new token: %s', chat_token)
-    async with aiofiles.open('.token', 'w') as f:
-        await f.write(chat_token)
+    if not await aio_os.path.exists('.env'):
+        async with aiofiles.open('.env', mode='w') as f:
+            await f.write('# File created by send_minechat.py\n')
+            logger.debug('Create .env file')
+    dotenv.set_key('.env', "MINECHAT_TOKEN", chat_token)
+    logger.debug('Save chat access token to .env file')
     return chat_token, registered_nickname
 
 
@@ -77,10 +83,8 @@ async def submit_message(options):
         chat_token, nickname = await register(reader, writer, options.user)
     elif options.token:
         nickname = await authorise(reader, writer, options.token)
-    elif await os.path.exists('.token'):
-        async with aiofiles.open('.token', 'r') as f:
-            chat_token = await f.readline()
-        logger.debug('Get token "%s" from file', chat_token.rstrip())
+    elif chat_token := os.getenv('MINECHAT_TOKEN'):
+        logger.debug('Get token "%s" from env', chat_token.rstrip())
         nickname = await authorise(reader, writer, chat_token)
     else:
         chat_token, nickname = await register(reader, writer)
@@ -106,6 +110,7 @@ def sanitize_input(message):
 
 
 def main():
+    dotenv.load_dotenv()
     logging.basicConfig(
         filename='send_minechat.log',
         filemode='w',
@@ -119,13 +124,27 @@ def main():
     )
 
     parser.add('message', help='Message to send')
-    parser.add('-h', '--host', required=True, help='host to connection')
-    parser.add('-p', '--port', required=True, help='port to connection')
+    parser.add(
+        '-host',
+        required=True,
+        help='host to connection',
+        env_var='HOST',
+        )
+    parser.add(
+        '-port',
+        required=True,
+        help='port to connection',
+        env_var='PORT',
+        )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('-t', '--token', required=False, help='Access token')
     group.add_argument(
-        '-u',
-        '--user',
+        '-token',
+        required=False,
+        help='Access token',
+        env_var='MINECHAT_TOKEN',
+        )
+    group.add_argument(
+        '-user',
         required=False,
         help='New user to registration',
     )
