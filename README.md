@@ -59,6 +59,7 @@ python send_minechat.py -host HOST -port PORT [-token TOKEN | -user USER] messag
 ```ini
 HOST=minechat.secret_lair.org
 PORT=5050
-MINECHAT_TOKEN='jdj-djdjd-jdjdj'
+MINECHAT_TOKEN='jdj-djdjd-jdjdj'  
+```
 # Цели проекта  
 Код написан в учебных целях — это урок в курсе по Python и веб-разработке на сайте [Devman](https://dvmn.org).
