@@ -7,6 +7,7 @@ import dotenv
 import aiofiles
 from aiofiles import os as aio_os
 import configargparse
+from socket_manager import open_socket
 
 
 READING_TIMEOUT = 600
@@ -74,35 +75,36 @@ async def handle_chat_reply(reader, echo=None):
 
 
 async def submit_message(options):
-    reader, writer = await asyncio.open_connection(
-        options.host,
-        options.port,
-    )
-    await handle_chat_reply(reader)
-    if options.user:
-        chat_token, nickname = await register(reader, writer, options.user)
-    elif options.token:
-        nickname = await authorise(reader, writer, options.token)
-    elif chat_token := os.getenv('MINECHAT_TOKEN'):
-        logger.debug('Get token "%s" from env', chat_token.rstrip())
-        nickname = await authorise(reader, writer, chat_token)
-    else:
-        chat_token, nickname = await register(reader, writer)
-    if not nickname:
+    async with open_socket(options.host, options.port) as s:
+        reader, writer = s
+        await handle_chat_reply(reader)
+        if options.user:
+            chat_token, nickname = await register(reader, writer, options.user)
+        elif options.token:
+            nickname = await authorise(reader, writer, options.token)
+        elif chat_token := os.getenv('MINECHAT_TOKEN'):
+            logger.debug('Get token "%s" from env', chat_token.rstrip())
+            nickname = await authorise(reader, writer, chat_token)
+        else:
+            chat_token, nickname = await register(reader, writer)
+        if not nickname:
+            return
+        logger.debug('Log in chat as %s', nickname)
+        print(
+            f'[{get_datetime_now()}] Успешный вход в чат под именем:'
+            f'{nickname}'
+        )
+        message = sanitize_input(options.message)
+        writer.write(f'{message}\n'.encode())
+        await writer.drain()
+        writer.write('\n'.encode())
+        await writer.drain()
+        logger.debug('Send: %s', message)
+        print(f'[{get_datetime_now()}] Cообщение отправлено')
+        await handle_chat_reply(reader)
+        writer.close()
+        await writer.wait_closed()
         return
-    logger.debug('Log in chat as %s', nickname)
-    print(f'[{get_datetime_now()}] Успешный вход в чат под именем: {nickname}')
-    message = sanitize_input(options.message)
-    writer.write(f'{message}\n'.encode())
-    await writer.drain()
-    writer.write('\n'.encode())
-    await writer.drain()
-    logger.debug('Send: %s', message)
-    print(f'[{get_datetime_now()}] Cообщение отправлено')
-    await handle_chat_reply(reader)
-    writer.close()
-    await writer.wait_closed()
-    return
 
 
 def sanitize_input(message):

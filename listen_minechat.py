@@ -1,25 +1,15 @@
 import datetime
 import socket
 import asyncio
-from contextlib import asynccontextmanager
 import aiofiles
 import dotenv
 import configargparse
+from socket_manager import open_socket
 
 
 READING_TIMEOUT = 600
 RECONNECT_DELAY = 30
 HISTORY_FILENAME = 'history.txt'
-
-
-@asynccontextmanager
-async def open_socket(host, port):
-    reader, writer = await asyncio.open_connection(host, port)
-    try:
-        yield reader
-    finally:
-        writer.close()
-        await writer.wait_closed()
 
 
 def get_datetime_now():
@@ -31,7 +21,8 @@ async def capture_chat(options):
         history_filename = options.history
     else:
         history_filename = HISTORY_FILENAME
-    async with open_socket(options.host, options.port_out) as reader:
+    async with open_socket(options.host, options.port_out) as s:
+        reader, _ = s
         async with aiofiles.open(history_filename, 'a') as f:
             while not reader.at_eof():
                 future = reader.readline()
