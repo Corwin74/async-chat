@@ -13,7 +13,7 @@ HISTORY_FILENAME = 'history.txt'
 
 
 @asynccontextmanager
-async def open_sosket(host, port):
+async def open_socket(host, port):
     reader, writer = await asyncio.open_connection(host, port)
     try:
         yield reader
@@ -31,7 +31,7 @@ async def capture_chat(options):
         history_filename = options.history
     else:
         history_filename = HISTORY_FILENAME
-    async with open_sosket(options.host, options.port_out) as reader:
+    async with open_socket(options.host, options.port_out) as reader:
         async with aiofiles.open(history_filename, 'a') as f:
             while not reader.at_eof():
                 future = reader.readline()
